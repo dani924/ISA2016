@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project name="RestoranReservationApp" basedir=".">
+
+	<property file="build.properties" />
+
+	<property name="build" value="${basedir}/build" />
+	<property name="dist" value="${basedir}/dist" />
+	<property name="docs" value="${basedir}/docs" />
+	<property name="lib" value="${basedir}/lib" />
+	<property name="src" value="${basedir}/src" />
+	<property name="web" value="${basedir}/WebContent" />
+
+	<path id="classpath">
+		<fileset dir="${lib}" includes="*.jar" />
+	</path>
+
+	<!-- Delete all built files -->
+	<target name="clean">
+		<delete dir="${build}" />
+		<delete dir="${dist}" />
+		<delete file="${tomee.dir}/webapps/${earname}" />
+		<delete dir="${tomee.dir}/webapps/${dirname}" />
+	</target>
+
+	<target name="check-tomee" unless="tomee.dir">
+		<fail>
+			Property "tomee.dir" is not set. Please use the file
+			"build.properties" in this directory ${basedir} to
+			set this property. It must point to the directory which
+			contains the following directory: "bin", "conf", "webapps"
+			etc.
+		</fail>
+	</target>
+
+	<target name="check-environment" depends="clean">
+		<antcall target="check-tomee" />
+	</target>
+
+	<target name="init" depends="check-environment">
+		<mkdir dir="${build}" />
+		<mkdir dir="${dist}" />
+		<echo message="java.home = ${java.home}" />
+		<echo message="tomee.dir = ${tomee.dir}" />
+	</target>
+
+	<!-- Compile everything -->
+	<target name="compile" depends="init">
+		<javac srcdir="${src}" destdir="${build}" classpathref="classpath" debug="true" />
+		<copy todir="${build}">
+			<fileset dir="${src}" includes="**/*.properties" />
+			<fileset dir="${src}" includes="**/*.xml" />
+		</copy>
+	</target>
+
+	<!-- War -->
+	<target name="war" depends="compile">
+		<war destfile="${dist}/${warname}" webxml="${web}/WEB-INF/web.xml">
+			<zipfileset dir="${web}">
+				<include name="*.jsp" />
+				<include name="*.html" />
+				<include name="*.css" />
+				<include name="*.js" />
+			</zipfileset>
+			<zipfileset dir="${web}/css">
+				<include name="*.css.map" />
+				<include name="*.css" />
+			</zipfileset>
+			<zipfileset dir="${web}/js">
+				<include name="*.js" />
+			</zipfileset>
+			<lib dir="${basedir}/lib">
+				<include name="*.jar" />
+			</lib>
+			<classes dir="build">
+				<include name="beans/*.class" />
+				<include name="servlets/*.class" />
+				<!--<include name="messages/*.properties"/>-->
+				<include name="log4j.properties" />
+			</classes>
+		</war>
+	</target>
+
+	<!-- Jar -->
+	<target name="jar" depends="compile">
+		<mkdir dir="${dist}" />
+		<jar destfile="${dist}/${jarname}">
+			<zipfileset dir="${web}/META-INF" prefix="META-INF">
+				<include name="persistence.xml" />
+			</zipfileset>
+			<zipfileset dir="${build}">
+				<include name="sessionbeans/*.class" />
+				<include name="servlets/*.class" />
+				<include name="entity/*.class" />
+				<include name="cient/*.class" />
+			</zipfileset>
+		</jar>
+	</target>
+
+	<!-- Ear -->
+	<target name="ear" depends="jar,war">
+		<mkdir dir="${dist}" />
+		<ear destfile="${dist}/${earname}" appxml="${web}/META-INF/application.xml">
+			<zipfileset dir="${dist}">
+				<include name="${jarname}" />
+				<include name="${warname}" />
+			</zipfileset>
+		</ear>
+	</target>
+
+	<!-- Deploy  -->
+	<target name="deploy" depends="ear">
+		<copy todir="${tomee.dir}/lib">
+			<fileset dir="${lib}" includes="mysql-connector-java-5.1.22-bin.jar" />
+			<fileset dir="${lib}" includes="log4j-1.2.8.jar" />
+		</copy>
+		<copy todir="${tomee.dir}/webapps">
+			<fileset dir="${dist}" includes="${earname}" />
+		</copy>
+	</target>
+
+	<!-- Setup -->
+	<target name="prepare-database">
+		<echo message="Inserting default user into database." />
+		<java classname="client.InitClient" fork="true">
+			<classpath>
+				<pathelement path="${build}" />
+				<fileset dir="${lib}">
+					<include name="*.jar" />
+				</fileset>
+			</classpath>
+		</java>
+	</target>
+
+	<!-- Empty database -->
+	<target name="drop-tables">
+		<sql classpath="${lib}/mysql-connector-java-5.1.22-bin.jar" driver="${db.driver}" url="${db.connectionString}" userid="${db.username}" password="${db.password}">
+			
+			DROP TABLE IF EXISTS rezervisanisto;
+			DROP TABLE IF EXISTS pozvaniprijatelj;
+			DROP TABLE IF EXISTS rezervacija;
+			DROP TABLE IF EXISTS sto;
+			DROP TABLE IF EXISTS stavka;
+			DROP TABLE IF EXISTS prijatelji;
+			DROP TABLE IF EXISTS korisnik;
+			DROP TABLE IF EXISTS restoran;
+		</sql>
+	</target>
+
+	<!--<target name="create-tables" depends="drop-tables">
+		<sql classpath="${lib}/mysql-connector-java-5.1.22-bin.jar" driver="${db.driver}" url="${db.connectionString}" userid="${db.username}" password="${db.password}">
+			CREATE TABLE `ra140_2011`.`gost` (
+			  `IdGost` INT NOT NULL,
+			  `Ime` VARCHAR(45) NOT NULL,
+			  `Prezime` VARCHAR(45) NOT NULL,
+			  `Email` VARCHAR(45) NOT NULL,
+			  `Lozinka` VARCHAR(45) NOT NULL,
+			  PRIMARY KEY (`IdGost`));
+			  
+			  CREATE TABLE `ra140_2011`.`restoran` (
+			  `IdRestoran` INT NOT NULL,
+			  `Naziv` VARCHAR(45) NOT NULL,
+			  `Opis` VARCHAR(100) NOT NULL,
+			  PRIMARY KEY (`IdRestoran`));
+			  
+			  CREATE TABLE `ra140_2011`.`menadzer` (
+			  `IdMenadzer` INT NOT NULL,
+			  `Ime` VARCHAR(45) NOT NULL,
+			  `Prezime` VARCHAR(45) NOT NULL,
+			  `Email` VARCHAR(45) NOT NULL,
+			  `Lozinka` VARCHAR(45) NOT NULL,
+			  `IdRest` INT,
+			  PRIMARY KEY (`IdMenadzer`),
+			  CONSTRAINT `FK_MENADZER_REST`
+			    FOREIGN KEY (`IdRest`)
+			    REFERENCES `ra140_2011`.`restoran` (`IdRestoran`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE);
+			  
+			  CREATE TABLE `ra140_2011`.`admin` (
+			  `IdAdmin` INT NOT NULL,
+			  `Ime` VARCHAR(45) NOT NULL,
+			  `Prezime` VARCHAR(45) NOT NULL,
+			  `Email` VARCHAR(45) NOT NULL,
+			  `Lozinka` VARCHAR(45) NOT NULL,
+			  PRIMARY KEY (`IdAdmin`));
+
+			  CREATE TABLE `ra140_2011`.`rezervacija` (
+			  `IdRezervacija` INT NOT NULL,
+			  `Datum` DATETIME NOT NULL,
+			  `Duzina` INT NOT NULL,
+			  `Status` CHAR(1) NOT NULL,
+			  `IdGost` INT NOT NULL,
+			  `Ocena` INT NOT NULL,
+			  PRIMARY KEY (`IdRezervacija`),
+			  INDEX `FK_REZ_GOST_idx` (`IdGost` ASC),
+			  CONSTRAINT `FK_REZ_GOST`
+			    FOREIGN KEY (`IdGost`)
+			    REFERENCES `ra140_2011`.`gost` (`IdGost`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE);
+
+			  CREATE TABLE `ra140_2011`.`prijatelji` (
+			  `IdPrvog` INT NOT NULL,
+			  `IdDrugog` INT NOT NULL,
+			  PRIMARY KEY (`IdPrvog`, `IdDrugog`),
+			  INDEX `FK_GOST_DRUGI_idx` (`IdDrugog` ASC),
+			  CONSTRAINT `FK_GOST_PRVI`
+			    FOREIGN KEY (`IdPrvog`)
+			    REFERENCES `ra140_2011`.`gost` (`IdGost`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE,
+			  CONSTRAINT `FK_GOST_DRUGI`
+			    FOREIGN KEY (`IdDrugog`)
+			    REFERENCES `ra140_2011`.`gost` (`IdGost`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE);
+
+			  CREATE TABLE `ra140_2011`.`stavka` (
+			  `IdStavka` INT NOT NULL,
+			  `Naziv` VARCHAR(50) NOT NULL,
+			  `Tekst` VARCHAR(50) NOT NULL,
+			  `Cena` DECIMAL NOT NULL,
+			  `IdRest` INT NOT NULL,
+			  PRIMARY KEY (`IdStavka`,`IdRest` ),
+			  CONSTRAINT `FK_STAVKA_REST`
+			    FOREIGN KEY (`IdRest`)
+			    REFERENCES `ra140_2011`.`restoran` (`IdRestoran`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE);
+
+			    CREATE TABLE `ra140_2011`.`sto` (
+			  `IdSto` INT NOT NULL,
+			  `Horizontalno` INT NOT NULL,
+			  `Vertikalno` INT NOT NULL,
+			  `IdRest` INT NOT NULL,
+			  PRIMARY KEY (`IdSto`, `IdRest`),
+			  INDEX `FK_STO_REST_idx` (`IdRest` ASC),
+			  CONSTRAINT `FK_STO_REST`
+			    FOREIGN KEY (`IdRest`)
+			    REFERENCES `ra140_2011`.`restoran` (`IdRestoran`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE);
+
+				CREATE TABLE `ra140_2011`.`rezervisanisto` (
+			  `IdRez` INT NOT NULL,
+			  `IdSto` INT NOT NULL,
+			  `IdRest` INT NOT NULL,
+			  PRIMARY KEY (`IdRez`, `IdSto`, `IdRest`),
+			  INDEX `FK_STO_idx` (`IdSto` ASC),
+			  CONSTRAINT `FK_REZERVACIJA`
+			    FOREIGN KEY (`IdRez`)
+			    REFERENCES `ra140_2011`.`rezervacija` (`IdRezervacija`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE,
+			  CONSTRAINT `FK_STO`
+			    FOREIGN KEY (`IdSto`)
+			    REFERENCES `ra140_2011`.`sto` (`IdSto`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE,
+			  CONSTRAINT `FK_RESTORAN`
+			    FOREIGN KEY (`IdRest`)
+			    REFERENCES `ra140_2011`.`sto` (`IdRest`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE)
+				;
+				
+				CREATE TABLE `ra140_2011`.`pozvaniprijatelj` (
+			  `IdPozvPrijatelj` INT NOT NULL,
+			  `IdRez` INT NOT NULL,
+			  `IdPrijatelja` INT NOT NULL,
+			  `Status` INT NOT NULL,
+			  `Ocena` INT NOT NULL,
+			  PRIMARY KEY (`IdPozvPrijatelj`),
+			  INDEX `FK_POZVAN_REZ_idx` (`IdRez` ASC),
+			  INDEX `FK_POZVAN_PRIJ_idx` (`IdPrijatelja` ASC),
+			  CONSTRAINT `FK_POZVAN_REZ`
+			    FOREIGN KEY (`IdRez`)
+			    REFERENCES `ra140_2011`.`rezervacija` (`IdRezervacija`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE,
+			  CONSTRAINT `FK_POZVAN_PRIJ`
+			    FOREIGN KEY (`IdPrijatelja`)
+			    REFERENCES `ra140_2011`.`prijatelji` (`IdDrugog`)
+			    ON DELETE CASCADE
+			    ON UPDATE CASCADE);
+
+		</sql>
+	</target>
+	
+	<target name="prepare-database" depends="create-tables">
+		<sql classpath="${lib}/mysql-connector-java-5.1.22-bin.jar" driver="${db.driver}" url="${db.connectionString}" userid="${db.username}" password="${db.password}">
+					
+					insert into admin values (1, '1', '1', '1', '1');
+
+					insert into gost values (1, '1', '1', '1', '1');
+
+					insert into gost values (2, '2', '2', '2', '2');
+
+					insert into restoran values (1, 'Naziv', 'Opis');
+
+					insert into menadzer values (1, '1', '1', '1', '1', 1);
+
+					insert into prijatelji values (1, 2);
+
+					insert into stavka values (1, 'Naziv', 'Tekst', 45, 1);
+
+					insert into sto values (1, 1, 1, 1);
+
+					insert into rezervacija values (1, '2016-07-05 12:12:15', 1, 1, 1, 1);
+
+					insert into pozvaniprijatelj values (1, 1, 2 , 1, 1);
+
+					insert into rezervisanisto values (1, 1, 1);
+						
+				</sql>
+		</target>
+	-->
+</project>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<application>
+    <display-name>RestoranReservationApp</display-name>
+    
+    <module>
+        <web>
+            <web-uri>RestoranReservationApp.war</web-uri>
+            <context-root>/RestoranReservationApp</context-root>
+        </web>
+    </module>
+
+    <module>
+        <ejb>RestoranReservationApp.jar</ejb>
+    </module>
+</application>
